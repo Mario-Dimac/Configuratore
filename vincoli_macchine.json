@@ -1,15 +1,1 @@
-[
-  {
-    "macchina": "MCV0",
-    "se": {
-      "posizione": "1",
-      "opzione": "Ottiche",
-      "valore": "M25"
-    },
-    "vieta": {
-      "posizione": "2",
-      "opzione": "IBG",
-      "valore": "Struttura Bobina"
-    }
-  }
-]
+[]
