@@ -11,8 +11,8 @@ import sys
 def carica_vincoli_json(path_json, macchina):
     with open(path_json, encoding="utf-8") as f:
         data = json.load(f)
-    # Restituisce solo i vincoli della macchina richiesta, come lista di dict
-    return data.get(macchina, [])
+    # Restituisce solo le regole della macchina richiesta (nuovo formato: lista di dict)
+    return [r for r in data if r.get("macchina", "").upper() == macchina.upper()]
 
 if __name__ == "__main__":
     logging.info("--- Verifica Vincoli Configurazione ---")
@@ -97,22 +97,24 @@ if __name__ == "__main__":
             return ' '.join(x.strip().lower().split())
         def controlla_vincoli_condizionali(macchina, selezioni, vincoli):
             violazioni = []
+            # vincoli è una lista di tuple (macchina, regole, None), ma ora regole è una lista di dict
             for macchina_v, valori_vincolo, _ in vincoli:
                 if macchina_v.upper() != macchina.upper():
                     continue
                 if isinstance(valori_vincolo, list):
                     for vincolo in valori_vincolo:
                         se = vincolo.get("se", {})
-                        vietato = vincolo.get("vietato", {})
-                        stz_se = se.get("stazione")
+                        vieta = vincolo.get("vieta", {})
+                        pos_se = se.get("posizione")
                         opz_se = normalizza(se.get("opzione", ""))
                         val_se = normalizza(se.get("valore", ""))
-                        stz_viet = vietato.get("stazione")
-                        opz_viet = normalizza(vietato.get("opzione", ""))
-                        val_viet = normalizza(vietato.get("valore", ""))
-                        if stz_se in selezioni and selezioni[stz_se].get(opz_se) == val_se:
-                            if stz_viet in selezioni and selezioni[stz_viet].get(opz_viet) == val_viet:
-                                violazioni.append(f"Se in {stz_se} c'è {opz_se}: {val_se}, in {stz_viet} non può esserci {opz_viet}: {val_viet}")
+                        pos_vieta = vieta.get("posizione")
+                        opz_vieta = normalizza(vieta.get("opzione", ""))
+                        val_vieta = normalizza(vieta.get("valore", ""))
+                        # Cerca la selezione nella posizione e opzione corrispondente
+                        if pos_se in selezioni and selezioni[pos_se].get(opz_se) == val_se:
+                            if pos_vieta in selezioni and selezioni[pos_vieta].get(opz_vieta) == val_vieta:
+                                violazioni.append(f"Se in posizione {pos_se} c'è {opz_se}: {val_se}, in posizione {pos_vieta} non può esserci {opz_vieta}: {val_vieta}")
             return violazioni
         # --- INIZIO LOGICA PRINCIPALE ---
         root = get_tk_root()
