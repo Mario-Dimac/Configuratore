@@ -4,179 +4,191 @@ import os
 import tkinter as tk
 from tkinter import filedialog, messagebox
 import json
+import logging
+import sys
 
-# Percorsi file
-DIR = os.path.dirname(__file__)
-PATH_OPZIONI = os.path.join(DIR, "Elenco_Opzioni.csv")
-PROPOSTE_DIR = os.path.join(DIR, "Proposte")
-
-# Carica vincoli dal CSV opzioni
-# Restituisce lista di tuple: (macchina, valori_vincolo, valori_posizione)
-def carica_vincoli():
-    vincoli = []
-    print("\nIntestazioni CSV:")
-    with open(PATH_OPZIONI, newline='', encoding="utf-8") as f:
-        reader = csv.DictReader(f)
-        print(reader.fieldnames)
-        print("\nValori colonna 'Tipo Opzione' trovati:")
-        tipi_opzione = set()
-        for row in reader:
-            val = row.get("Tipo Opzione")
-            if val is not None:
-                tipi_opzione.add(val.strip())
-            else:
-                tipi_opzione.add("<manca>")
-        print(tipi_opzione)
-    # Rilettura per parsing effettivo
-    with open(PATH_OPZIONI, newline='', encoding="utf-8") as f:
-        reader = csv.DictReader(f)
-        print("\nVincoli caricati dal file:")
-        for row in reader:
-            tipo_opz = row.get("Tipo Opzione")
-            if tipo_opz is not None and tipo_opz.strip().lower() == "vincolo":
-                vincoli_raw = row.get("Vincoli", "")
-                posizioni_raw = row.get("Posizioni Ammesse", "")
-                try:
-                    vincoli_dict = json.loads(vincoli_raw) if vincoli_raw else {}
-                except Exception:
-                    import ast
-                    vincoli_dict = ast.literal_eval(vincoli_raw) if vincoli_raw else {}
-                try:
-                    posizioni_dict = json.loads(posizioni_raw) if posizioni_raw else {}
-                except Exception:
-                    import ast
-                    posizioni_dict = ast.literal_eval(posizioni_raw) if posizioni_raw else {}
-                for macchina, valori_vincolo in vincoli_dict.items():
-                    valori_posizione = posizioni_dict.get(macchina, [])
-                    vincoli.append((macchina, valori_vincolo, valori_posizione))
-                    # Stampa il vincolo letto
-                    print(f"- Macchina: {macchina} | Vincoli: {valori_vincolo} | Posizioni vietate: {valori_posizione}")
-    print("\nPrime 5 righe del file CSV:")
-    with open(PATH_OPZIONI, newline='', encoding="utf-8") as f:
-        reader = csv.DictReader(f)
-        for i, row in enumerate(reader):
-            print(row)
-            if i >= 4:
-                break
-    return vincoli
-
-# Permetti selezione file configurazione
-# Restituisce path file selezionato
-def scegli_file_configurazione():
-    root = tk.Tk()
-    root.withdraw()
-    file_path = filedialog.askopenfilename(
-        title="Seleziona la configurazione macchina da verificare",
-        initialdir=PROPOSTE_DIR,
-        filetypes=[("CSV", "*.csv")]
-    )
-    return file_path
-
-def scegli_file_configurazione_gui():
-    def on_browse():
-        file_path = filedialog.askopenfilename(
-            title="Seleziona la configurazione macchina da verificare",
-            initialdir=PROPOSTE_DIR,
-            filetypes=[("CSV", "*.csv")]
-        )
-        if file_path:
-            entry_file.delete(0, tk.END)
-            entry_file.insert(0, file_path)
-
-    def on_ok():
-        nonlocal selected_file
-        selected_file = entry_file.get()
-        root.destroy()
-
-    selected_file = None
-    root = tk.Tk()
-    root.title("Verifica Vincoli Configurazione")
-    root.geometry("600x120")
-    tk.Label(root, text="Seleziona il file di configurazione da verificare:").pack(pady=10)
-    frame = tk.Frame(root)
-    frame.pack(pady=5)
-    entry_file = tk.Entry(frame, width=60)
-    entry_file.pack(side=tk.LEFT, padx=5)
-    tk.Button(frame, text="Sfoglia...", command=on_browse).pack(side=tk.LEFT)
-    tk.Button(root, text="Verifica", command=on_ok, width=15).pack(pady=10)
-    root.mainloop()
-    return selected_file
-
-# Carica configurazione proposta (ritorna dict: stazione -> {opzione: valore})
-def carica_configurazione(path):
-    selezioni = {}
-    with open(path, newline='', encoding="utf-8") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            stazione = row.get("Stazione") or row.get("stazione") or row.get("Posizione") or row.get("posizione")
-            if not stazione:
-                continue
-            opzioni_raw = row.get("Opzioni Selezionate", "")
-            selezioni[stazione] = {}
-            if opzioni_raw and opzioni_raw.lower() != "(nessuna opzione selezionata)":
-                for s in opzioni_raw.split(","):
-                    s = s.strip()
-                    if not s:
-                        continue
-                    if ":" in s:
-                        opz, val = [x.strip() for x in s.split(":", 1)]
-                        selezioni[stazione][normalizza(opz)] = normalizza(val)
-                    else:
-                        selezioni[stazione][normalizza(s)] = True
-            for k, v in row.items():
-                if k.lower() not in ("stazione", "posizione", "opzioni selezionate") and v and v.lower() != "(nessuna opzione selezionata)":
-                    selezioni[stazione][normalizza(k.strip())] = normalizza(v.strip())
-    return selezioni
-
-def normalizza(x):
-    if not isinstance(x, str):
-        return x
-    return ' '.join(x.strip().lower().split())
-
-# Controlla i vincoli per la macchina e la configurazione
-def controlla_vincoli(macchina, selezioni, vincoli):
-    violazioni = []
-    valori_selezionati = set()
-    for opzdict in selezioni.values():
-        for opz, val in opzdict.items():
-            if isinstance(val, bool):
-                valori_selezionati.add(normalizza(opz))
-            else:
-                valori_selezionati.add(normalizza(opz))
-                valori_selezionati.add(normalizza(val))
-    for macchina_v, valori_vincolo, valori_posizione in vincoli:
-        if macchina_v.upper() != macchina.upper():
-            continue
-        trovato_vincolo = any(normalizza(v) in valori_selezionati for v in valori_vincolo)
-        trovato_posizione = any(normalizza(p) in valori_selezionati for p in valori_posizione)
-        if valori_vincolo and valori_posizione and trovato_vincolo and trovato_posizione:
-            violazioni.append(("GLOBALE", valori_vincolo, valori_posizione))
-    return violazioni
+# Carica vincoli da file JSON (vincoli_macchine.json)
+def carica_vincoli_json(path_json, macchina):
+    with open(path_json, encoding="utf-8") as f:
+        data = json.load(f)
+    # Restituisce solo i vincoli della macchina richiesta, come lista di dict
+    return data.get(macchina, [])
 
 if __name__ == "__main__":
+    logging.info("--- Verifica Vincoli Configurazione ---")
     print("--- Verifica Vincoli Configurazione ---")
-    config_path = scegli_file_configurazione_gui()
-    if not config_path:
-        print("Nessun file selezionato. Uscita.")
-        exit(0)
-    macchina = os.path.basename(config_path).split("_")[0].upper()
-    selezioni = carica_configurazione(config_path)
-    vincoli = carica_vincoli()
-    violazioni = controlla_vincoli(macchina, selezioni, vincoli)
-    if violazioni:
-        msg = f"ATTENZIONE: Configurazione NON ammessa per la macchina '{macchina}'.\n\n"
-        for stz, valori_vincolo, valori_posizione in violazioni:
-            msg += f"- Stazione {stz}: Vincolo: {', '.join(valori_vincolo)} NON compatibile con {', '.join(valori_posizione)}\n"
-        print(msg)
+    try:
+        # Percorsi file
+        DIR = os.path.dirname(__file__)
+        PROPOSTE_DIR = os.path.join(DIR, "Proposte")
+        # Utility: get a single hidden Tk root for all dialogs
+        _tk_root = None
+        def get_tk_root():
+            global _tk_root
+            if _tk_root is None:
+                _tk_root = tk.Tk()
+                _tk_root.withdraw()
+            return _tk_root
+        # Dialog per selezionare file configurazione
+        def scegli_file_configurazione_gui():
+            def on_browse():
+                file_path = filedialog.askopenfilename(
+                    title="Seleziona la configurazione macchina da verificare",
+                    initialdir=PROPOSTE_DIR,
+                    filetypes=[("CSV", "*.csv")],
+                    parent=dialog
+                )
+                if file_path:
+                    entry_file.delete(0, tk.END)
+                    entry_file.insert(0, file_path)
+            def on_ok():
+                nonlocal selected_file
+                selected_file = entry_file.get()
+                dialog.destroy()
+            def on_cancel():
+                nonlocal selected_file
+                selected_file = None
+                dialog.destroy()
+            selected_file = None
+            root = get_tk_root()
+            dialog = tk.Toplevel(root)
+            dialog.title("Verifica Vincoli Configurazione")
+            dialog.geometry("600x120")
+            dialog.grab_set()
+            tk.Label(dialog, text="Seleziona il file di configurazione da verificare:").pack(pady=10)
+            frame = tk.Frame(dialog)
+            frame.pack(pady=5)
+            entry_file = tk.Entry(frame, width=60)
+            entry_file.pack(side=tk.LEFT, padx=5)
+            tk.Button(frame, text="Sfoglia...", command=on_browse).pack(side=tk.LEFT)
+            tk.Button(dialog, text="Verifica", command=on_ok, width=15).pack(pady=10)
+            tk.Button(dialog, text="Annulla", command=on_cancel, width=10).pack(pady=2)
+            dialog.protocol("WM_DELETE_WINDOW", on_cancel)
+            dialog.wait_window()
+            return selected_file
+        # Carica configurazione proposta (ritorna dict: stazione -> {opzione: valore})
+        def carica_configurazione(path):
+            selezioni = {}
+            with open(path, newline='', encoding="utf-8") as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    stazione = row.get("Stazione") or row.get("stazione") or row.get("Posizione") or row.get("posizione")
+                    if not stazione:
+                        continue
+                    opzioni_raw = row.get("Opzioni Selezionate", "")
+                    selezioni[stazione] = {}
+                    if opzioni_raw and opzioni_raw.lower() != "(nessuna opzione selezionata)":
+                        for s in opzioni_raw.split(","):
+                            s = s.strip()
+                            if not s:
+                                continue
+                            if ":" in s:
+                                opz, val = [x.strip() for x in s.split(":", 1)]
+                                selezioni[stazione][normalizza(opz)] = normalizza(val)
+                            else:
+                                selezioni[stazione][normalizza(s)] = True
+                    for k, v in row.items():
+                        if k.lower() not in ("stazione", "posizione", "opzioni selezionate") and v and v.lower() != "(nessuna opzione selezionata)":
+                            selezioni[stazione][normalizza(k.strip())] = normalizza(v.strip())
+            return selezioni
+        def normalizza(x):
+            if not isinstance(x, str):
+                return x
+            return ' '.join(x.strip().lower().split())
+        def controlla_vincoli_condizionali(macchina, selezioni, vincoli):
+            violazioni = []
+            for macchina_v, valori_vincolo, _ in vincoli:
+                if macchina_v.upper() != macchina.upper():
+                    continue
+                if isinstance(valori_vincolo, list):
+                    for vincolo in valori_vincolo:
+                        se = vincolo.get("se", {})
+                        vietato = vincolo.get("vietato", {})
+                        stz_se = se.get("stazione")
+                        opz_se = normalizza(se.get("opzione", ""))
+                        val_se = normalizza(se.get("valore", ""))
+                        stz_viet = vietato.get("stazione")
+                        opz_viet = normalizza(vietato.get("opzione", ""))
+                        val_viet = normalizza(vietato.get("valore", ""))
+                        if stz_se in selezioni and selezioni[stz_se].get(opz_se) == val_se:
+                            if stz_viet in selezioni and selezioni[stz_viet].get(opz_viet) == val_viet:
+                                violazioni.append(f"Se in {stz_se} c'è {opz_se}: {val_se}, in {stz_viet} non può esserci {opz_viet}: {val_viet}")
+            return violazioni
+        # --- INIZIO LOGICA PRINCIPALE ---
+        root = get_tk_root()
+        vincoli_json_path = filedialog.askopenfilename(
+            title="Seleziona il file dei vincoli (vincoli_macchine.json)",
+            initialdir=DIR,
+            filetypes=[("JSON", "*.json")],
+            parent=root
+        )
+        if not vincoli_json_path:
+            logging.error("Nessun file vincoli selezionato. Uscita.")
+            print("Nessun file vincoli selezionato. Uscita.")
+            try:
+                messagebox.showerror("Errore", "Nessun file vincoli selezionato. Il programma verrà chiuso.", parent=root)
+            except Exception:
+                pass
+            sys.exit(0)
+        config_path = scegli_file_configurazione_gui()
+        logging.info(f"File configurazione selezionato: {config_path}")
+        if not config_path:
+            logging.error("Nessun file selezionato. Uscita.")
+            print("Nessun file selezionato. Uscita.")
+            try:
+                messagebox.showerror("Errore", "Nessun file di configurazione selezionato. Il programma verrà chiuso.", parent=root)
+            except Exception:
+                pass
+            sys.exit(0)
+        macchina = os.path.basename(config_path).split("_")[0].upper()
+        logging.info(f"Macchina: {macchina}")
+        logging.info("PRIMA di carica_configurazione")
+        selezioni = carica_configurazione(config_path)
+        logging.info("DOPO carica_configurazione")
+        logging.debug(f"Selezioni: {selezioni}")
+        logging.info("PRIMA di carica_vincoli (JSON)")
+        vincoli = carica_vincoli_json(vincoli_json_path, macchina)
+        logging.info("DOPO carica_vincoli (JSON)")
+        logging.debug(f"Vincoli caricati: {vincoli}")
+        if not vincoli:
+            logging.warning("Nessun vincolo trovato per la macchina!")
+            print("Nessun vincolo trovato per la macchina!")
+            try:
+                messagebox.showinfo("Nessun vincolo", "Nessun vincolo trovato per la macchina!", parent=root)
+            except Exception:
+                pass
+            sys.exit(0)
+        logging.info("PRIMA di controlla_vincoli_condizionali")
+        # Adatta la struttura per la funzione (macchina, vincoli, None)
+        violazioni_cond = controlla_vincoli_condizionali(macchina, selezioni, [(macchina, vincoli, None)])
+        logging.info("DOPO controlla_vincoli_condizionali")
+        logging.info(f"Violazioni condizionali trovate: {violazioni_cond}")
+        if violazioni_cond:
+            msg = f"ATTENZIONE: Configurazione NON ammessa per la macchina '{macchina}'.\n\n"
+            for v in violazioni_cond:
+                msg += f"- {v}\n"
+            print(msg)
+            logging.warning(msg)
+            try:
+                messagebox.showwarning("Vincoli configurazione", msg, parent=root)
+            except Exception:
+                pass
+        else:
+            okmsg = f"Configurazione OK per la macchina '{macchina}'. Nessun vincolo violato."
+            print(okmsg)
+            logging.info(okmsg)
+            try:
+                messagebox.showinfo("OK", okmsg, parent=root)
+            except Exception:
+                pass
+        print("--- Fine Verifica Vincoli Configurazione ---")
+        logging.info("--- Fine Verifica Vincoli Configurazione ---")
+    except Exception as e:
+        import traceback
+        logging.error(f"Errore inatteso: {e}")
+        logging.error(traceback.format_exc())
+        print("Errore inatteso:", e)
         try:
-            root = tk.Tk(); root.withdraw()
-            messagebox.showwarning("Vincoli configurazione", msg)
-        except Exception:
-            pass
-    else:
-        print(f"Configurazione OK per la macchina '{macchina}'. Nessun vincolo violato.")
-        try:
-            root = tk.Tk(); root.withdraw()
-            messagebox.showinfo("OK", f"Configurazione OK per la macchina '{macchina}'. Nessun vincolo violato.")
+            messagebox.showerror("Errore inatteso", str(e), parent=get_tk_root())
         except Exception:
             pass
