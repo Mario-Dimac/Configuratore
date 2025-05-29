@@ -163,4 +163,15 @@ class PrezziOpzioniApp:
 if __name__ == "__main__":
     root = tk.Tk()  # Crea la finestra principale Tk
     app = PrezziOpzioniApp(root)  # Istanzia l'applicazione
+    def on_exit():
+        logging.info("Chiusura applicazione richiesta dall'utente.")
+        try:
+            root.destroy()
+        except Exception as e:
+            logging.error(f"Errore durante la chiusura della finestra principale: {e}")
+        sys.exit(0)
+    root.protocol("WM_DELETE_WINDOW", on_exit)
+    # Pulsante ESCI grande e ben visibile
+    exit_btn = tk.Button(root, text="ESCI", command=on_exit, bg="#d9534f", fg="white", font=("Arial", 16, "bold"), height=2, width=12)
+    exit_btn.pack(side="bottom", anchor="e", padx=20, pady=20)
     root.mainloop()  # Avvia il ciclo principale della GUI

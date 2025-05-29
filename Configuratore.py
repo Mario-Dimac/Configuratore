@@ -300,7 +300,7 @@ class ConfiguratoreApp:
                 entries[field] = entry
 
         # Guida contestuale per la compilazione delle opzioni
-        guida_label = ttk.Label(frame, text="Esempio: per opzioni con valori multipli o a due livelli, inserisci tutti i valori separati da virgola.\nEsempio Marposs: 'Cricche 1 sonda, Cricche 2 sonde, Cricche 4 sonde'.\nEsempio IBG: 'Cricche 1 sonda, Cricche 2 sonde, Cricche 4 sonde, Struttura Sonda, Struttura Forca, Struttura Bobina'.\nPoi usa 'Modifica Vincoli' per abilitare solo i valori ammessi per ogni macchina.", foreground="#003366", wraplength=700, justify="left")
+        guida_label = ttk.Label(frame, text="Esempio: per opzioni con valori multipli o a due livelli, inserisci tutti i valori separati da virgola.\nEsempio Marposs: 'Cricche 1 sonda, Cricche 2 sonde, Cricche 4 sonde'.\nEsempio IBG: 'Cricche 1 sonda, Cricche 2 sonde, Cricche 4 sonde, Struttura Sonda, Struttura Forca, Struttura Bobina'.\nPoi usa 'Modifica Vincoli' per abilitare solo i valori ammessi per ogni macchina.\nATTENZIONE, questo programma non sovrascrive i file csv ORIGINALI, ne crea di nuovi. se aggiungi, modifichi o cancelli dati ricorda di fare COPIA-INCOLLA nella cartella dati.", foreground="#003366", wraplength=700, justify="left")
         guida_label.pack(fill="x", padx=10, pady=(5,0))
 
         btn_frame = ttk.Frame(frame)
@@ -791,4 +791,26 @@ class CostiDialog(tk.Toplevel):
 if __name__ == "__main__":
     root = tk.Tk()
     app = ConfiguratoreApp(root)
+    def on_exit():
+        """Gestisce la chiusura esplicita dell' applicazione, sia da pulsante che da X."""
+        logging.info("Chiusura applicazione richiesta dall'utente.")
+        try:
+            root.destroy()
+        except Exception as e:
+            logging.error(f"Errore durante la chiusura della finestra principale: {e}")
+        sys.exit(0)
+    # Collega la chiusura della finestra principale alla funzione on_exit
+    root.protocol("WM_DELETE_WINDOW", on_exit)
+    # Aggiungi un pulsante 'Esci' in basso a destra, più grande e ben visibile
+    exit_btn = tk.Button(
+        root,
+        text="ESCI",
+        command=on_exit,
+        bg="#d9534f",
+        fg="white",
+        font=("Arial", 16, "bold"),
+        height=2,
+        width=12
+    )
+    exit_btn.pack(side="bottom", anchor="e", padx=20, pady=20)
     root.mainloop()

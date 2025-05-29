@@ -165,6 +165,17 @@ def crea_o_mostra_win_selezioni():
                 writer.writerow([k, testo])
     btn_stampa = tk.Button(frame_selezioni, text="STAMPA", font=("Arial", 11, "bold"), bg="#2196f3", fg="white", command=stampa_riepilogo)
     btn_stampa.pack(anchor="s", pady=5, fill="x")
+    # --- Pulsante ESCI grande ---
+    def chiusura_sicura():
+        logging.info("Chiusura applicazione richiesta dall'utente (da riepilogo)")
+        try:
+            win_selezioni.destroy()
+            root_main.destroy()
+        except Exception as e:
+            logging.error(f"Errore durante la chiusura delle finestre: {e}")
+        sys.exit(0)
+    btn_exit = tk.Button(frame_selezioni, text="ESCI", font=("Arial", 16, "bold"), bg="#d9534f", fg="white", height=2, width=12, command=chiusura_sicura)
+    btn_exit.pack(anchor="s", pady=15, fill="x")
     def chiudi_win_selezioni():
         win_selezioni.withdraw()
     win_selezioni.protocol("WM_DELETE_WINDOW", chiudi_win_selezioni)
@@ -432,6 +443,19 @@ def mostra_disposizione_mcv1():
     btn_ax = plt.axes([0.82, 0.01, 0.15, 0.05])
     btn = plt.Button(btn_ax, 'Mostra selezioni', color='#e0e0e0', hovercolor='#b0b0b0')
     btn.on_clicked(on_btn_mostra_selezioni)
+    # --- PULSANTE ESCI GRANDE IN MATPLOTLIB ---
+    def chiusura_sicura_matplot(event=None):
+        logging.info("Chiusura applicazione richiesta dall'utente (da Matplotlib)")
+        try:
+            plt.close('all')
+            root_main.destroy()
+        except Exception as e:
+            logging.error(f"Errore durante la chiusura delle finestre: {e}")
+        sys.exit(0)
+    btn_exit_ax = plt.axes([0.82, 0.08, 0.15, 0.07])
+    btn_exit = plt.Button(btn_exit_ax, 'ESCI', color='#d9534f', hovercolor='#b52a2a')
+    btn_exit.label.set_fontsize(16)
+    btn_exit.on_clicked(chiusura_sicura_matplot)
 
     def seleziona_opzioni_tkinter(nome_originale_stazione, opzioni_disponibili, selezione_precedente_str):
         print("[DEBUG] APERTA seleziona_opzioni_tkinter", opzioni_disponibili)
@@ -533,30 +557,39 @@ def mostra_disposizione_mcv1():
                 valore2opzione = {}
                 is_uscita = nome_normalizzato_key.startswith('uscita')
                 with open(PATH_OPZIONI, newline='', encoding="utf-8") as f:
-                    reader = csv.DictReader(f)
+                    reader = list(csv.DictReader(f))  # Leggi tutto una volta sola
                     if is_uscita:
+                        # Filtra tutte le opzioni di tipo 'Uscita' compatibili con la macchina selezionata
                         for row in reader:
-                            if row["Opzione"].strip().lower() == "uscita":
-                                macchine = [m.strip() for m in row["Macchine Compatibili"].split(",") if m.strip()]
-                                if macchina in macchine:
-                                    vincoli_raw = row.get("Vincoli", "").strip()
-                                    valori_filtrati = []
-                                    if vincoli_raw:
-                                        try:
-                                            vincoli_dict = ast.literal_eval(vincoli_raw)
-                                            vincoli_macchina = vincoli_dict.get(macchina, [])
-                                            valori_filtrati = vincoli_macchina
-                                        except Exception as e:
-                                            print(f"[ERRORE] Errore parsing 'Vincoli' per opzione 'Uscita': {e}. Valore: '{vincoli_raw}'")
-                                    if not valori_filtrati:
-                                        valori_filtrati = [v.strip() for v in row["Valori Possibili"].split(",") if v.strip()]
-                                    for v in valori_filtrati:
-                                        nuove_opzioni.append(f"Uscita: {v}")
-                                        valore2opzione[f"Uscita: {v}"] = "Uscita"
-                                    if not valori_filtrati:
-                                        nuove_opzioni.append("Uscita")
-                                        valore2opzione["Uscita"] = "Uscita"
-                                    break
+                            opzione_nome = row["Opzione"].strip()
+                            tipo_opz = row["Tipo Opzione"].strip().lower()
+                            macchine = [m.strip() for m in row["Macchine Compatibili"].split(",") if m.strip()]
+                            if tipo_opz == "uscita" and macchina in macchine:
+                                vincoli_raw = row.get("Vincoli", "").strip()
+                                valori_filtrati = []
+                                if vincoli_raw:
+                                    try:
+                                        vincoli_dict = ast.literal_eval(vincoli_raw)
+                                        vincoli_macchina = vincoli_dict.get(macchina, [])
+                                        valori_filtrati = vincoli_macchina
+                                    except Exception as e:
+                                        print(f"[ERRORE] Errore parsing 'Vincoli' per opzione '{row['Opzione']}': {e}. Valore: '{vincoli_raw}'")
+                                if not valori_filtrati:
+                                    valori_filtrati = [v.strip() for v in row["Valori Possibili"].split(",") if v.strip()]
+                                for v in valori_filtrati:
+                                    nuove_opzioni.append(f"{opzione_nome}: {v}")
+                                    valore2opzione[f"{opzione_nome}: {v}"] = opzione_nome
+                        # Rimuovi duplicati mantenendo l'ordine
+                        visti = set()
+                        nuove_opzioni_uniche = []
+                        for o in nuove_opzioni:
+                            if o not in visti:
+                                nuove_opzioni_uniche.append(o)
+                                visti.add(o)
+                        nuove_opzioni = nuove_opzioni_uniche
+                        if not nuove_opzioni:
+                            nuove_opzioni.append("Uscita")
+                            valore2opzione["Uscita"] = "Uscita"
                     else:
                         for opzione in opzioni_disponibili:
                             for row in reader:

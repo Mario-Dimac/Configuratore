@@ -135,7 +135,7 @@ def main():
     """Funzione principale che avvia la GUI e gestisce il caricamento e la visualizzazione della configurazione."""
     root = tk.Tk()  # Crea la finestra principale Tk
     root.title("Visualizza Configurazione")  # Titolo della finestra
-    root.geometry("800x500")  # Dimensione finestra
+    root.geometry("800x800")  # Dimensione finestra
 
     def carica_e_mostra():
         """Carica il file di configurazione selezionato e mostra il riepilogo nella finestra di testo."""
@@ -170,6 +170,17 @@ def main():
     text.pack(expand=True, fill="both", padx=10, pady=10)
     btn_copia = tk.Button(root, text="Copia riepilogo", command=copia_testo, font=("Arial", 11), bg="#4caf50", fg="white")  # Bottone per copiare il riepilogo
     btn_copia.pack(pady=5, fill="x")
+    # Pulsante ESCI grande e ben visibile
+    def on_exit():
+        logging.info("Chiusura applicazione richiesta dall'utente.")
+        try:
+            root.destroy()
+        except Exception as e:
+            logging.error(f"Errore durante la chiusura della finestra principale: {e}")
+        sys.exit(0)
+    root.protocol("WM_DELETE_WINDOW", on_exit)
+    exit_btn = tk.Button(root, text="ESCI", command=on_exit, bg="#d9534f", fg="white", font=("Arial", 16, "bold"), height=2, width=12)
+    exit_btn.pack(side="bottom", anchor="e", padx=20, pady=20)
     root.mainloop()  # Avvia il ciclo principale della GUI
 
 if __name__ == "__main__":
